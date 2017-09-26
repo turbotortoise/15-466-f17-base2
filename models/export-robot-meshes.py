@@ -5,22 +5,35 @@
 #Note: Script meant to be executed from within blender, as per:
 #blender --background --python export-meshes.py
 
-#reads 'island.blend' and writes '../dist/meshes.blob' (meshes) and '../dist/scene.blob' (scene in layer 1)
+#reads 'robot.blend' and writes '../dist/meshes.blob' (meshes) and '../dist/scene.blob' (scene in layer 1)
 
 import sys
 
 import bpy
 import struct
 
-bpy.ops.wm.open_mainfile(filepath='island.blend')
+bpy.ops.wm.open_mainfile(filepath='robot.blend')
 
 #names of objects whose meshes to write (not actually the names of the meshes):
 to_write = [
-	'House',
-	'Land',
-	'Tree',
-	'Water',
-	'Rock',
+	'Balloon1',
+	'Balloon1-Pop',
+	'Balloon2',
+	'Balloon2-Pop',
+	'Balloon3',
+	'Balloon3-Pop',
+	'Crate',
+	'Crate.001',
+	'Crate.002',
+	'Crate.003',
+	'Crate.004',
+	'Crate.005',
+	'Cube.001',
+	#'Stand',
+	'Base',
+	'Link1',
+	'Link2',
+	'Link3',
 ]
 
 #data contains vertex and normal data from the meshes:
@@ -38,7 +51,7 @@ data_colors = b''
 vertex_count = 0
 for name in to_write:
 	print("Writing '" + name + "'...")
-	bpy.ops.object.mode_set(mode='OBJECT') #get out of edit mode (just in case)
+	#bpy.ops.object.mode_set(mode='OBJECT') #get out of edit mode (just in case)
 	assert(name in bpy.data.objects)
 	obj = bpy.data.objects[name]
 
@@ -59,7 +72,7 @@ for name in to_write:
 
 	#compute normals (respecting face smoothing):
 	mesh = obj.data
-	mesh.calc_normals_split()
+	mesh.calc_normals_split()	
 
 	#code taken from varkenvarken's blender add ons github
 	if mesh.vertex_colors.active is None:
@@ -119,7 +132,7 @@ print("Wrote " + str(blob.tell()) + " bytes to meshes.blob")
 #Export scene (object positions for every object on layer one)
 
 #(re-open file because we adjusted mesh users in the export above)
-bpy.ops.wm.open_mainfile(filepath='island.blend')
+bpy.ops.wm.open_mainfile(filepath='robot.blend')
 
 #strings chunk will have names
 strings = b''
@@ -156,7 +169,6 @@ blob.write(strings)
 blob.write(struct.pack('4s',b'scn0')) #type
 blob.write(struct.pack('I', len(scene))) #length
 blob.write(scene)
-
 #colors?
 blob.write(data_colors)
 

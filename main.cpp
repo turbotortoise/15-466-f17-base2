@@ -11,6 +11,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <algorithm>
 #include <stdexcept>
 #include <fstream>
 
@@ -199,32 +200,80 @@ int main(int argc, char **argv) {
 					throw std::runtime_error("index entry has out-of-range name begin/end");
 				}
 				std::string name(&strings[0] + entry.name_begin, &strings[0] + entry.name_end);
+				if ((name != "Balloon1") && (name != "Balloon2") && (name != "Balloon3") &&
+					(name != "Base") && (name != "Link1") && (name != "Link2") && (name != "Link3"))
 				add_object(name, entry.position, entry.rotation, entry.scale);
 			}
 		}
 	}
 
-	//create a weird waving tree stack:
+	//robot arm stack:
 	std::vector< Scene::Object * > tree_stack;
-	tree_stack.emplace_back( &add_object("Tree", glm::vec3(1.0f, 0.0f, 0.2f), glm::quat(0.0f, 0.0f, 0.0f, 1.0f), glm::vec3(0.3f)) );
-	tree_stack.emplace_back( &add_object("Tree", glm::vec3(0.0f, 0.0f, 1.7f), glm::quat(0.0f, 0.0f, 0.0f, 1.0f), glm::vec3(0.9f)) );
-	tree_stack.emplace_back( &add_object("Tree", glm::vec3(0.0f, 0.0f, 1.7f), glm::quat(0.0f, 0.0f, 0.0f, 1.0f), glm::vec3(0.9f)) );
-	tree_stack.emplace_back( &add_object("Tree", glm::vec3(0.0f, 0.0f, 1.7f), glm::quat(0.0f, 0.0f, 0.0f, 1.0f), glm::vec3(0.9f)) );
+
+	tree_stack.emplace_back( &add_object("Base", glm::vec3(0.0f, 0.0f, 0.0f), glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
+	tree_stack.emplace_back( &add_object("Link1", glm::vec3(0.0f, 0.0f, 0.2f), glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
+	tree_stack.emplace_back( &add_object("Link2", glm::vec3(0.0f, 0.0f, 1.3f), glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
+	tree_stack.emplace_back( &add_object("Link3", glm::vec3(0.0f, 0.0f, 1.3f), glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
 
 	for (uint32_t i = 1; i < tree_stack.size(); ++i) {
 		tree_stack[i]->transform.set_parent(&tree_stack[i-1]->transform);
 	}
 
-	std::vector< float > wave_acc(tree_stack.size(), 0.0f);
+	std::vector< float > wave_rotation(tree_stack.size(), 0.0f);
+	std::vector< float > bottom_wave_acc(tree_stack.size(), 0.0f);
+	std::vector< float > mid_wave_acc(tree_stack.size(), 0.0f);
+	std::vector< float > top_wave_acc(tree_stack.size(), 0.0f);
 
+	//balloon variables
+	bool b1_is_popped = false;
+	float b1_pop_time = -1.0f;
+
+	bool b2_is_popped = false;
+	float b2_pop_time = -1.0f;
+
+	bool b3_is_popped = false;
+	float b3_pop_time = -1.0f;
+
+	float balloon_radius = 2.0f;
+
+	glm::vec3 balloon_1_origpos = glm::vec3(2.0f, 1.0f, 3.0f);
+	glm::vec3 balloon_2_origpos = glm::vec3(-2.0f, 1.0f, 2.0f);
+	glm::vec3 balloon_3_origpos = glm::vec3(-2.0f, -1.0f, 2.0f);
+
+	float balloon_Speed = 1.0f;
+	float balloon_height_center = 2.5f; //center height for all balloons
+
+	//ballon stack
+	std::vector< Scene::Object * > balloon_stack;
+
+	balloon_stack.emplace_back( &add_object("Balloon1", balloon_1_origpos, glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
+	balloon_stack.emplace_back( &add_object("Balloon2", balloon_2_origpos, glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
+	balloon_stack.emplace_back( &add_object("Balloon3", balloon_3_origpos, glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
+
+	std::vector< float > balloon_movement(balloon_stack.size(), 0.0f);
 	glm::vec2 mouse = glm::vec2(0.0f, 0.0f); //mouse position in [-1,1]x[-1,1] coordinates
 
 	struct {
-		float radius = 5.0f;
+		float radius = 10.0f;
 		float elevation = 0.0f;
 		float azimuth = 0.0f;
 		glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
 	} camera;
+
+	//Variables for keeping track of arm movement
+	//z or x
+	float rotateVelocity = 0.0f;
+	float rotateSpeed = 0.2f;
+	//a or s
+	float bottom_arm_rotateSpeed = 0.3f;
+	float bottom_arm_velocity = 0.0f;
+	//; or '
+	float mid_arm_rotateSpeed = 0.4f;
+	float mid_arm_velocity = 0.0f;
+	//. or /
+	float top_arm_rotateSpeed = 0.5f;
+	float top_arm_velocity = 0.0f;
+
 
 	//------------ game loop ------------
 
@@ -242,8 +291,51 @@ int main(int argc, char **argv) {
 					camera.azimuth += -2.0f * (mouse.x - old_mouse.x);
 				}
 			} else if (evt.type == SDL_MOUSEBUTTONDOWN) {
-			} else if (evt.type == SDL_KEYDOWN && evt.key.keysym.sym == SDLK_ESCAPE) {
-				should_quit = true;
+			} else if (evt.type == SDL_KEYDOWN) {
+				if (evt.key.keysym.sym == SDLK_ESCAPE)
+					should_quit = true;
+
+				//Button Inputs
+
+				//rotate clockwise
+				else if (evt.key.keysym.sym == SDLK_z) {
+					rotateVelocity = 1.0f;
+				}
+				//rotate counterclockwise
+				else if (evt.key.keysym.sym == SDLK_x) {
+					rotateVelocity = -1.0f;
+				}
+				else if (evt.key.keysym.sym == SDLK_a) {
+					bottom_arm_velocity = 1.0f;
+				}
+				else if (evt.key.keysym.sym == SDLK_s) {
+					bottom_arm_velocity = -1.0f;
+				}
+				else if (evt.key.keysym.sym == SDLK_SEMICOLON) {
+					mid_arm_velocity = 1.0f;
+				}
+				else if (evt.key.keysym.sym == SDLK_QUOTE) {
+					mid_arm_velocity = -1.0f;
+				}
+				else if (evt.key.keysym.sym == SDLK_PERIOD) {
+					top_arm_velocity = 1.0f;
+				}
+				else if (evt.key.keysym.sym == SDLK_SLASH) {
+					top_arm_velocity = -1.0f;
+				}
+			} else if (evt.type == SDL_KEYUP) {
+				if ((evt.key.keysym.sym == SDLK_z) || (evt.key.keysym.sym == SDLK_x)) {
+					rotateVelocity = 0.0f;
+				}
+				else if ((evt.key.keysym.sym == SDLK_a) || (evt.key.keysym.sym == SDLK_s)) {
+					bottom_arm_velocity = 0.0f;
+				}
+				else if ((evt.key.keysym.sym == SDLK_SEMICOLON) || (evt.key.keysym.sym == SDLK_QUOTE)) {
+					mid_arm_velocity = 0.0f;
+				}
+				else if ((evt.key.keysym.sym == SDLK_PERIOD) || (evt.key.keysym.sym == SDLK_SLASH)) {
+					top_arm_velocity = 0.0f;
+				}
 			} else if (evt.type == SDL_QUIT) {
 				should_quit = true;
 				break;
@@ -257,16 +349,95 @@ int main(int argc, char **argv) {
 		previous_time = current_time;
 
 		{ //update game state:
-			//tree stack:
-			for (uint32_t i = 0; i < tree_stack.size(); ++i) {
-				wave_acc[i] += elapsed * (0.3f + 0.3f * i);
-				wave_acc[i] -= std::floor(wave_acc[i]);
-				float ang = (0.7f * float(M_PI)) * i;
+
+			//check balloon states
+			if (!b1_is_popped) {
+				glm::vec3 balloon_pos = balloon_stack[0]->transform.position;
+				glm::vec3 needle_pos = tree_stack[tree_stack.size() - 1]->transform.position;
+				float dist = std::sqrt(std::pow((balloon_pos.x - needle_pos.x), 2) + 
+					                   std::pow((balloon_pos.y - needle_pos.y), 2) + 
+					                   std::pow((balloon_pos.z - needle_pos.z), 2));
+				printf("needlepos: (%f, %f, %f)\n", needle_pos.x, needle_pos.y, needle_pos.z);
+				printf("dist: %f\n", dist);
+				if (dist <= balloon_radius) {
+					printf("b1 popped\n");
+					b1_is_popped = true;
+				}
+			}
+
+			if (!b2_is_popped) {
+				glm::vec3 balloon_pos = balloon_stack[1]->transform.position;
+				glm::vec3 needle_pos = tree_stack[tree_stack.size() - 1]->transform.position;
+				float dist = std::sqrt(std::pow((balloon_pos.x - needle_pos.x), 2) + 
+					                   std::pow((balloon_pos.y - needle_pos.y), 2) + 
+					                   std::pow((balloon_pos.z - needle_pos.z), 2));
+				if (dist <= balloon_radius) {
+					printf("b2 popped\n");
+					b2_is_popped = true;
+				}
+			}
+
+			if (!b3_is_popped) {
+				glm::vec3 balloon_pos = balloon_stack[2]->transform.position;
+				glm::vec3 needle_pos = tree_stack[tree_stack.size() - 1]->transform.position;
+				float dist = std::sqrt(std::pow((balloon_pos.x - needle_pos.x), 2) + 
+					                   std::pow((balloon_pos.y - needle_pos.y), 2) + 
+					                   std::pow((balloon_pos.z - needle_pos.z), 2));
+				if (dist <= balloon_radius) {
+					printf("b3 popped\n");
+					b3_is_popped = true;
+				}
+			}
+
+			//update balloon positions
+			balloon_stack[0]->transform.position.z = balloon_height_center + ((std::sin(0.01f * elapsed)));
+			//printf("stack0z: %f\n", balloon_stack[0]->transform.position.z);
+			//upate arm positions
+			for (uint32_t i = 0; i < tree_stack.size(); i++) {
+				wave_rotation[i] += elapsed * (rotateVelocity * rotateSpeed);
+				//wave_rotation[i] -= std::floor(wave_rotation[i]);
+				float ang = (0.5f * float(M_PI)) * i;
 				tree_stack[i]->transform.rotation = glm::angleAxis(
-					std::cos(wave_acc[i] * 2.0f * float(M_PI)) * (0.2f + 0.1f * i),
-					glm::vec3(std::cos(ang), std::sin(ang), 0.0f)
+					std::sin(wave_rotation[i] * float(M_PI)),
+					glm::vec3(2.0f*std::sin(ang), 0.0f, std::cos(ang))
 				);
 			}
+			for (uint32_t i = 1; i < tree_stack.size(); i++) {
+				float speed = bottom_arm_velocity * bottom_arm_rotateSpeed;
+				bottom_wave_acc[i] += elapsed * speed;
+				bottom_wave_acc[i] -= std::floor(bottom_wave_acc[i]);
+				//printf("bottomwave: %f\n", (bottom_wave_acc[i] * float(M_PI)));
+				float ang = (0.5f * float(M_PI)) * i;
+				tree_stack[i]->transform.rotation = glm::angleAxis(
+					std::sin(bottom_wave_acc[i] * float(M_PI)),
+					glm::vec3(std::sin(ang), std::cos(ang), 0.0f)
+					);
+			}
+			for (uint32_t i = 2; i < tree_stack.size(); i++) {				
+				float speed = mid_arm_velocity * mid_arm_rotateSpeed;
+				mid_wave_acc[i] += elapsed * speed;
+				mid_wave_acc[i] -= std::floor(mid_wave_acc[i]);
+				mid_wave_acc[i] += elapsed * (mid_arm_velocity * mid_arm_rotateSpeed);
+				mid_wave_acc[i] -= std::floor(mid_wave_acc[i]);
+				float ang = (0.5f * float(M_PI)) * i;
+				tree_stack[i]->transform.rotation = glm::angleAxis(
+					std::sin(mid_wave_acc[i] * float(M_PI)),
+					glm::vec3(std::cos(ang), 0.0f, std::sin(ang))
+					);
+			}			
+			for (uint32_t i = 3; i < tree_stack.size(); i++) {
+				float speed = top_arm_velocity * top_arm_rotateSpeed;
+				top_wave_acc[i] += elapsed * speed;
+				top_wave_acc[i] -= std::floor(top_wave_acc[i]);
+				top_wave_acc[i] += elapsed * (top_arm_velocity * top_arm_rotateSpeed);
+				top_wave_acc[i] -= std::floor(top_wave_acc[i]);
+				float ang = (0.5f * float(M_PI)) * i;
+				tree_stack[i]->transform.rotation = glm::angleAxis(
+					std::sin(top_wave_acc[i] * float(M_PI)),
+					glm::vec3(std::sin(ang), std::cos(ang), 0.0f)
+					);
+			}
+			
 
 			//camera:
 			scene.camera.transform.position = camera.radius * glm::vec3(

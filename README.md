@@ -1,28 +1,24 @@
 NOTE: please fill in the first section with information about your game.
 
-# *Game Title*
+# *Robot Fun Police*
 
-*Game Title* is *Your Name*'s implementation of [*Design Document*](http://graphics.cs.cmu.edu/courses/15-466-f17/game2-designs/put-real-link-here) for game2 in 15-466-f17.
+*Robot Fun Police* is *Breeanna Ebert*'s implementation of [*Design Document*](http://graphics.cs.cmu.edu/courses/15-466-f17/game2-designs/jmccann) for game2 in 15-466-f17.
 
-*Include a Screenshot Here*
-
-## Build Notes
-
-*Include any special notes or steps required to build your game here. If there are no special notes, delete this section.*
+![screenshot](https://github.com/turbotortoise/15-466-f17-base1/blob/master/screenshots/Game2Screenshot.png)
 
 ## Asset Pipeline
 
-*Briefly describe the asset pipeline for this game. What sorts of source files are used? How are they processed? How are they loaded?*
+*Meshes are exported through the export-robot-meshes.py script through blender. All meshes in which the user doesn't interact with are added to the scene. Interactable objects are added with references.*
 
 ## Architecture
 
-*Provide a brief introduction to how you implemented the design. Talk about the basic structure of your code.*
+*I create stacks of the robot and balloons. If the user presses the appropriate buttons, the robot will move. If the needle collides with a sphere collider enclosing a balloon, that balloon will pop.*
 
 ## Reflection
 
-*Reflect on the assignment. What was difficult? What worked well? If you were doing it again, what would you change?*
+*The collision detection for the needle isn't as accurate as it could be. I wanted to create a cylinder enclosing the needle, and trigger the pop when the cylinder collided with the balloon's sphere collider.*
 
-*Reflect on the design document. What was clear and what was ambiguous? How did you resolve the ambiguities?*
+*Do the balloons start in different positions? Do they have different floating speeds?*
 
 
 # About Base2
