@@ -4,7 +4,7 @@ NOTE: please fill in the first section with information about your game.
 
 *Robot Fun Police* is *Breeanna Ebert*'s implementation of [*Design Document*](http://graphics.cs.cmu.edu/courses/15-466-f17/game2-designs/jmccann) for game2 in 15-466-f17.
 
-![screenshot](https://github.com/turbotortoise/15-466-f17-base1/blob/master/screenshots/Game2Screenshot.png)
+![screenshot](https://github.com/turbotortoise/15-466-f17-base2/blob/master/screenshots/Game2Screenshot.png)
 
 ## Asset Pipeline
 
