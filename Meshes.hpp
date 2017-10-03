@@ -17,6 +17,7 @@ struct Meshes {
 	struct Attributes {
 		GLuint Position = -1U;
 		GLuint Normal = -1U;
+		GLuint Color = -1U;
 	};
 	//add meshes from a file; use the indicated indices for attribute locations:
 	// note: will throw if file fails to read.

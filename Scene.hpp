@@ -26,6 +26,8 @@ struct Scene {
 		glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);
 		glm::quat rotation = glm::quat(0.0f, 0.0f, 0.0f, 1.0f);
 		glm::vec3 scale = glm::vec3(1.0f, 1.0f, 1.0f);
+		float speed = 0.0f; //speed of object
+		glm::vec3 velocity = glm::vec3(0.0f, 0.0f, 0.0f); //direction vector
 
 		//hierarchy information:
 		Transform *parent = nullptr;

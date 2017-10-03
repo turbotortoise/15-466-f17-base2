@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
 	//Configuration:
 	struct {
 		std::string title = "Game2: Scene";
-		glm::uvec2 size = glm::uvec2(640, 480);
+		glm::uvec2 size = glm::uvec2(1000, 700);
 	} config;
 
 	//------------  initialization ------------
@@ -175,6 +175,41 @@ int main(int argc, char **argv) {
 		return object;
 	};
 
+	auto object_is_cylinder = [&](std::string const &name) {
+		//printf("name: %s\n", name);
+		if (name.find("Cylinder") != std::string::npos)
+			return true;
+		return false;
+	};
+
+	auto object_is_ball = [&](std::string const &name) {
+		if (name.find("Ball") != std::string::npos)
+			return true;
+		return false;
+	};
+
+	auto object_is_dozer = [&](std::string const &name) {
+		if (name.find("Circle") != std::string::npos)
+			return true;
+		return false;
+	};
+
+	std::vector< Scene::Object * > ball_object_list;
+	std::vector< Scene::Object * > dozer_object_list;
+	std::vector< Scene::Object * > cylinder_object_list;
+	std::vector< int > dozer1_wheel_dir(4, 0);
+	std::vector< int > dozer2_wheel_dir(4, 0);
+	std::vector< float > dozer_rotation(2, 0.0f);
+	std::vector< float > ball_rotation(ball_object_list.size(), 0.0f);
+	float collision_radius = 0.15f; //collision radius of balls and dozers
+	float score_collision_radius = 0.4f; //collision radius of cylinders
+
+
+	//The only things constant in this world
+	float gravity = 0.0098f;
+	float air_damping = -1.0f;
+	float friction = 0.9f;
+
 
 	{ //read objects to add from "scene.blob":
 		std::ifstream file("scene.blob", std::ios::binary);
@@ -200,80 +235,27 @@ int main(int argc, char **argv) {
 					throw std::runtime_error("index entry has out-of-range name begin/end");
 				}
 				std::string name(&strings[0] + entry.name_begin, &strings[0] + entry.name_end);
-				if ((name != "Balloon1") && (name != "Balloon2") && (name != "Balloon3") &&
-					(name != "Base") && (name != "Link1") && (name != "Link2") && (name != "Link3"))
-				add_object(name, entry.position, entry.rotation, entry.scale);
+				//place objects in the background
+				if (object_is_cylinder(name))
+					cylinder_object_list.emplace_back( &add_object(name, entry.position, entry.rotation, entry.scale));
+				else if (object_is_ball(name))
+					ball_object_list.emplace_back( &add_object(name, entry.position, entry.rotation, entry.scale));
+				else if (object_is_dozer(name))
+					dozer_object_list.emplace_back( &add_object(name, entry.position, entry.rotation, entry.scale));
+				else
+					add_object(name, entry.position, entry.rotation, entry.scale);
 			}
 		}
 	}
 
-	//robot arm stack:
-	std::vector< Scene::Object * > tree_stack;
-
-	tree_stack.emplace_back( &add_object("Base", glm::vec3(0.0f, 0.0f, 0.0f), glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
-	tree_stack.emplace_back( &add_object("Link1", glm::vec3(0.0f, 0.0f, 0.2f), glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
-	tree_stack.emplace_back( &add_object("Link2", glm::vec3(0.0f, 0.0f, 1.3f), glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
-	tree_stack.emplace_back( &add_object("Link3", glm::vec3(0.0f, 0.0f, 1.3f), glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
-
-	for (uint32_t i = 1; i < tree_stack.size(); ++i) {
-		tree_stack[i]->transform.set_parent(&tree_stack[i-1]->transform);
-	}
-
-	std::vector< float > wave_rotation(tree_stack.size(), 0.0f);
-	std::vector< float > bottom_wave_acc(tree_stack.size(), 0.0f);
-	std::vector< float > mid_wave_acc(tree_stack.size(), 0.0f);
-	std::vector< float > top_wave_acc(tree_stack.size(), 0.0f);
-
-	//balloon variables
-	bool b1_is_popped = false;
-	float b1_pop_time = -1.0f;
-
-	bool b2_is_popped = false;
-	float b2_pop_time = -1.0f;
-
-	bool b3_is_popped = false;
-	float b3_pop_time = -1.0f;
-
-	float balloon_radius = 2.0f;
-
-	glm::vec3 balloon_1_origpos = glm::vec3(2.0f, 1.0f, 3.0f);
-	glm::vec3 balloon_2_origpos = glm::vec3(-2.0f, 1.0f, 2.0f);
-	glm::vec3 balloon_3_origpos = glm::vec3(-2.0f, -1.0f, 2.0f);
-
-	float balloon_Speed = 1.0f;
-	float balloon_height_center = 2.5f; //center height for all balloons
-
-	//ballon stack
-	std::vector< Scene::Object * > balloon_stack;
-
-	balloon_stack.emplace_back( &add_object("Balloon1", balloon_1_origpos, glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
-	balloon_stack.emplace_back( &add_object("Balloon2", balloon_2_origpos, glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
-	balloon_stack.emplace_back( &add_object("Balloon3", balloon_3_origpos, glm::quat(0.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f)) );
-
-	std::vector< float > balloon_movement(balloon_stack.size(), 0.0f);
 	glm::vec2 mouse = glm::vec2(0.0f, 0.0f); //mouse position in [-1,1]x[-1,1] coordinates
 
 	struct {
-		float radius = 10.0f;
-		float elevation = 0.0f;
-		float azimuth = 0.0f;
+		float radius = 5.0f;
+		float elevation = 1.57f;
+		float azimuth = 1.57f;
 		glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
 	} camera;
-
-	//Variables for keeping track of arm movement
-	//z or x
-	float rotateVelocity = 0.0f;
-	float rotateSpeed = 0.2f;
-	//a or s
-	float bottom_arm_rotateSpeed = 0.3f;
-	float bottom_arm_velocity = 0.0f;
-	//; or '
-	float mid_arm_rotateSpeed = 0.4f;
-	float mid_arm_velocity = 0.0f;
-	//. or /
-	float top_arm_rotateSpeed = 0.5f;
-	float top_arm_velocity = 0.0f;
-
 
 	//------------ game loop ------------
 
@@ -292,50 +274,67 @@ int main(int argc, char **argv) {
 				}
 			} else if (evt.type == SDL_MOUSEBUTTONDOWN) {
 			} else if (evt.type == SDL_KEYDOWN) {
+				//Uint8 *keystate = SDL_GetKeyState(NULL);
 				if (evt.key.keysym.sym == SDLK_ESCAPE)
 					should_quit = true;
 
 				//Button Inputs
 
-				//rotate clockwise
-				else if (evt.key.keysym.sym == SDLK_z) {
-					rotateVelocity = 1.0f;
+				//Controls for first dozer
+				if (evt.key.keysym.sym == SDLK_a) {
+					dozer1_wheel_dir[0] = 1;
 				}
-				//rotate counterclockwise
-				else if (evt.key.keysym.sym == SDLK_x) {
-					rotateVelocity = -1.0f;
+				if (evt.key.keysym.sym == SDLK_z) {
+					dozer1_wheel_dir[1] = 1;
 				}
-				else if (evt.key.keysym.sym == SDLK_a) {
-					bottom_arm_velocity = 1.0f;
+				if (evt.key.keysym.sym == SDLK_s) {
+					dozer1_wheel_dir[2] = 1;
 				}
-				else if (evt.key.keysym.sym == SDLK_s) {
-					bottom_arm_velocity = -1.0f;
+				if (evt.key.keysym.sym == SDLK_x) {
+					dozer1_wheel_dir[3] = 1;
 				}
-				else if (evt.key.keysym.sym == SDLK_SEMICOLON) {
-					mid_arm_velocity = 1.0f;
+
+				//Secondary dozer inputs
+				if (evt.key.keysym.sym == SDLK_SEMICOLON) {
+					dozer2_wheel_dir[0] = 1;
 				}
-				else if (evt.key.keysym.sym == SDLK_QUOTE) {
-					mid_arm_velocity = -1.0f;
+				if (evt.key.keysym.sym == SDLK_PERIOD) {
+					dozer2_wheel_dir[1] = 1;
 				}
-				else if (evt.key.keysym.sym == SDLK_PERIOD) {
-					top_arm_velocity = 1.0f;
+				if (evt.key.keysym.sym == SDLK_QUOTE) {
+					dozer2_wheel_dir[2] = 1;
 				}
-				else if (evt.key.keysym.sym == SDLK_SLASH) {
-					top_arm_velocity = -1.0f;
+				if (evt.key.keysym.sym == SDLK_SLASH) {
+					dozer2_wheel_dir[3] = 1;
 				}
+
 			} else if (evt.type == SDL_KEYUP) {
-				if ((evt.key.keysym.sym == SDLK_z) || (evt.key.keysym.sym == SDLK_x)) {
-					rotateVelocity = 0.0f;
+
+				if (evt.key.keysym.sym == SDLK_a) {
+					dozer1_wheel_dir[0] = 0;
 				}
-				else if ((evt.key.keysym.sym == SDLK_a) || (evt.key.keysym.sym == SDLK_s)) {
-					bottom_arm_velocity = 0.0f;
+				if (evt.key.keysym.sym == SDLK_z) {
+					dozer1_wheel_dir[1] = 0;
 				}
-				else if ((evt.key.keysym.sym == SDLK_SEMICOLON) || (evt.key.keysym.sym == SDLK_QUOTE)) {
-					mid_arm_velocity = 0.0f;
+				if (evt.key.keysym.sym == SDLK_s) {
+					dozer1_wheel_dir[2] = 0;
 				}
-				else if ((evt.key.keysym.sym == SDLK_PERIOD) || (evt.key.keysym.sym == SDLK_SLASH)) {
-					top_arm_velocity = 0.0f;
+				if (evt.key.keysym.sym == SDLK_x) {
+					dozer1_wheel_dir[3] = 0;
 				}
+				if (evt.key.keysym.sym == SDLK_SEMICOLON)
+					dozer2_wheel_dir[0] = 0;
+					
+				if(evt.key.keysym.sym == SDLK_PERIOD) {
+					dozer2_wheel_dir[1] = 0;
+				}
+				if (evt.key.keysym.sym == SDLK_QUOTE) {
+					dozer2_wheel_dir[2] = 0;
+				}
+				if (evt.key.keysym.sym == SDLK_SLASH) {
+					dozer2_wheel_dir[3] = 0;
+				}
+
 			} else if (evt.type == SDL_QUIT) {
 				should_quit = true;
 				break;
@@ -350,94 +349,204 @@ int main(int argc, char **argv) {
 
 		{ //update game state:
 
-			//check balloon states
-			if (!b1_is_popped) {
-				glm::vec3 balloon_pos = balloon_stack[0]->transform.position;
-				glm::vec3 needle_pos = tree_stack[tree_stack.size() - 1]->transform.position;
-				float dist = std::sqrt(std::pow((balloon_pos.x - needle_pos.x), 2) + 
-					                   std::pow((balloon_pos.y - needle_pos.y), 2) + 
-					                   std::pow((balloon_pos.z - needle_pos.z), 2));
-				printf("needlepos: (%f, %f, %f)\n", needle_pos.x, needle_pos.y, needle_pos.z);
-				printf("dist: %f\n", dist);
-				if (dist <= balloon_radius) {
-					printf("b1 popped\n");
-					b1_is_popped = true;
+			//Update Dozer positions
+			for (uint32_t i = 0; i < 2; i++) {
+
+
+				//Update dozer 1
+				if (dozer1_wheel_dir[0] == 1) {
+					//A button
+					dozer_object_list[0]->transform.speed = 0.01f;
+					dozer_rotation[0] += 0.01f;
+					//dozer_object_list[0]->transform.rotation.z += std::sin(ang);
+				}
+				if (dozer1_wheel_dir[1] == 1) {
+					//Z button
+					dozer_object_list[0]->transform.speed = -0.01f;
+					dozer_rotation[0] -= 0.01f;
+				}
+				if (dozer1_wheel_dir[2] == 1) {
+					//S button
+					dozer_object_list[0]->transform.speed = 0.01f;
+					dozer_rotation[0] -= 0.01f;
+				}
+				if (dozer1_wheel_dir[3] == 1) {
+					//X button
+					dozer_object_list[0]->transform.speed = -0.01f;
+					dozer_rotation[0] += 0.01f;
+				}
+				if ((dozer1_wheel_dir[0] == 0) && (dozer1_wheel_dir[1] == 0) && (dozer1_wheel_dir[2] == 0) && (dozer1_wheel_dir[3] == 0)) {
+					//no buttons
+					dozer_object_list[0]->transform.speed = 0.0f;
+				}
+
+				//Update Dozer 2
+				if (dozer2_wheel_dir[0] == 1) {
+					//semi-colon button
+					dozer_object_list[1]->transform.speed = 0.01f;
+					dozer_rotation[1] += 0.01f;
+					//dozer_object_list[1]->transform.rotation.z += std::sin(ang);
+				}
+				if (dozer2_wheel_dir[1] == 1) {
+					//period button
+					dozer_object_list[1]->transform.speed = -0.01f;
+					dozer_rotation[1] -= 0.01f;
+				}
+				if (dozer2_wheel_dir[2] == 1) {
+					//quote button
+					dozer_object_list[1]->transform.speed = 0.01f;
+					dozer_rotation[1] -= 0.01f;
+				}
+				if (dozer2_wheel_dir[3] == 1) {
+					//slash button
+					dozer_object_list[1]->transform.speed = -0.01f;
+					dozer_rotation[1] += 0.01f;
+				}
+				if ((dozer2_wheel_dir[0] == 0) && (dozer2_wheel_dir[1] == 0) && (dozer2_wheel_dir[2] == 0) && (dozer2_wheel_dir[3] == 0)) {
+					//no buttons
+					dozer_object_list[1]->transform.speed = 0.0f;
+				}
+
+				float ang = dozer_rotation[i] * float(M_PI);
+
+				//Update Dozer positions
+				dozer_object_list[i]->transform.velocity = glm::vec3(
+					std::cos(ang), std::sin(ang), 0.0f);
+
+				dozer_object_list[i]->transform.rotation = glm::angleAxis(
+					std::sin(ang * dozer_object_list[i]->transform.speed),
+					glm::vec3(0.0f, 0.0f, std::sin(ang) + std::cos(ang))
+					);
+
+				dozer_object_list[i]->transform.position += (
+					dozer_object_list[i]->transform.speed * 
+					glm::vec3(std::cos(ang), std::sin(ang), 0.0f)
+					);
+
+			}
+
+			//Update Ball positions
+
+			//Collision between dozer and ball
+			auto dozer_collision = [&](Scene::Object *dozer, Scene::Object *ball) {
+				//find distance
+				float distance = std::sqrt(std::pow(ball->transform.position.x - dozer->transform.position.x, 2)
+								 + std::pow(ball->transform.position.y - dozer->transform.position.y, 2));
+				if (distance <= (2.0f * collision_radius)) {
+					glm::vec3 a_to_b = ball->transform.position - dozer->transform.position;
+					glm::vec3 norm_ab = std::sqrt(std::pow(a_to_b.x, 2) + 
+												  std::pow(a_to_b.y, 2) + 
+												  std::pow(a_to_b.z, 2)) * a_to_b;
+					ball->transform.speed = dozer->transform.speed;
+					ball->transform.velocity += 100.0f * dozer->transform.speed * norm_ab;
+				}
+			};
+
+			//Elastic sphere collision
+			auto sphere_collision = [&](Scene::Object *ball_1, Scene::Object *ball_2) {
+				//find distance
+				float distance = std::sqrt(std::pow(ball_2->transform.position.x - ball_1->transform.position.x, 2)
+								 + std::pow(ball_2->transform.position.y - ball_1->transform.position.y, 2));
+				if (distance <= (2.0f * collision_radius)) {
+					glm::vec3 a_to_b = ball_2->transform.position - ball_1->transform.position;
+					glm::vec3 norm_ab = std::sqrt(std::pow(a_to_b.x, 2) + 
+												  std::pow(a_to_b.y, 2) + 
+												  std::pow(a_to_b.z, 2)) * a_to_b;
+					//exchange velocities
+					float temp = ball_1->transform.speed;
+					ball_2->transform.speed = temp;
+					ball_1->transform.speed = 0.0f;
+					//ball_2->transform.velocity += 100.0f * ball_1->transform.speed * norm_ab;
+				}
+			};
+
+			auto goal_collision = [&](Scene::Object *goal, Scene::Object *ball) {
+
+				float distance = std::sqrt(std::pow(ball->transform.position.x - goal->transform.position.x, 2)
+								 + std::pow(ball->transform.position.y - goal->transform.position.y, 2));
+				if (distance <= (collision_radius + score_collision_radius)) {
+					return true;
+				}
+				return false;
+			};
+
+			auto border_collision = [&](Scene::Object *object) {
+				//check if object hit border
+				if (object->transform.position.x > 2.86f)
+					object->transform.velocity.x = -std::abs(object->transform.velocity.x);
+				if (object->transform.position.x < -2.86f)
+					object->transform.velocity.x = std::abs(object->transform.velocity.x);
+				if (object->transform.position.y > 1.9f)
+					object->transform.velocity.y = -std::abs(object->transform.velocity.y);
+				if (object->transform.position.y < -1.9f)
+					object->transform.velocity.y = std::abs(object->transform.velocity.y);
+			};
+
+			int index_delete = -1;
+
+			for (uint32_t i = 0; i < ball_object_list.size(); i++) {
+				for (uint32_t j = 0; j < dozer_object_list.size(); j++) {
+					//Dozer Collisions with Ball
+					dozer_collision(dozer_object_list[j], ball_object_list[i]);
+					border_collision(dozer_object_list[j]);
+					
+				}
+				for (uint32_t j = 0; j < cylinder_object_list.size(); j++) {
+					if (goal_collision(cylinder_object_list[j], ball_object_list[i])) {
+						index_delete = i;
+					}
+				}
+
+				//Constantly move balls
+				ball_object_list[i]->transform.position += (
+					ball_object_list[i]->transform.speed * 
+					ball_object_list[i]->transform.velocity);
+				//Constantly apply friction to balls
+				if (ball_object_list[i]->transform.speed <= 0.000001f)
+					ball_object_list[i]->transform.speed = 0.0f; //set to stop
+				else {
+					ball_object_list[i]->transform.speed *= friction; //exponential decrease
+					//constantly rotate balls
+					ball_object_list[i]->transform.rotation = glm::angleAxis(
+						ball_object_list[i]->transform.speed,
+						ball_object_list[i]->transform.velocity
+						);
+				}
+				//Constantly apply gravity
+				if (ball_object_list[i]->transform.position.z >= (0.001f + collision_radius)) {
+					ball_object_list[i]->transform.position.z -= gravity;
+				}
+				else {
+					//ball hit the ground, bounce back if speed is high enough
+					if (ball_object_list[i]->transform.speed >= 0.001f) {
+						ball_object_list[i]->transform.position += glm::vec3(
+							0.0f, 0.0f, 0.0001f);
+					}
 				}
 			}
 
-			if (!b2_is_popped) {
-				glm::vec3 balloon_pos = balloon_stack[1]->transform.position;
-				glm::vec3 needle_pos = tree_stack[tree_stack.size() - 1]->transform.position;
-				float dist = std::sqrt(std::pow((balloon_pos.x - needle_pos.x), 2) + 
-					                   std::pow((balloon_pos.y - needle_pos.y), 2) + 
-					                   std::pow((balloon_pos.z - needle_pos.z), 2));
-				if (dist <= balloon_radius) {
-					printf("b2 popped\n");
-					b2_is_popped = true;
+
+			//Ball collisions with Ball
+			for (uint32_t i = 0; i < ball_object_list.size(); i++) {
+				for (uint32_t j = 0; j < ball_object_list.size(); j++) {
+					sphere_collision(ball_object_list[i], ball_object_list[j]);
 				}
+				//Ball collisions with sides
+				for (uint32_t j = 0; j < cylinder_object_list.size(); j++) {
+					if (goal_collision(cylinder_object_list[j], ball_object_list[i])) {
+						index_delete = i;
+					}
+				}
+				border_collision(ball_object_list[i]);
 			}
 
-			if (!b3_is_popped) {
-				glm::vec3 balloon_pos = balloon_stack[2]->transform.position;
-				glm::vec3 needle_pos = tree_stack[tree_stack.size() - 1]->transform.position;
-				float dist = std::sqrt(std::pow((balloon_pos.x - needle_pos.x), 2) + 
-					                   std::pow((balloon_pos.y - needle_pos.y), 2) + 
-					                   std::pow((balloon_pos.z - needle_pos.z), 2));
-				if (dist <= balloon_radius) {
-					printf("b3 popped\n");
-					b3_is_popped = true;
-				}
+			//Deletes ball if there is a collision with goal
+			if (index_delete != -1) {
+				// ball_object_list.erase(ball_object_list.begin() + (index_delete - 1));
+				// ball_rotation.erase(ball_rotation.begin() + (index_delete - 1));
+				index_delete = -1; //reset ball index
 			}
 
-			//update balloon positions
-			balloon_stack[0]->transform.position.z = balloon_height_center + ((std::sin(0.01f * elapsed)));
-			//printf("stack0z: %f\n", balloon_stack[0]->transform.position.z);
-			//upate arm positions
-			for (uint32_t i = 0; i < tree_stack.size(); i++) {
-				wave_rotation[i] += elapsed * (rotateVelocity * rotateSpeed);
-				//wave_rotation[i] -= std::floor(wave_rotation[i]);
-				float ang = (0.5f * float(M_PI)) * i;
-				tree_stack[i]->transform.rotation = glm::angleAxis(
-					std::sin(wave_rotation[i] * float(M_PI)),
-					glm::vec3(2.0f*std::sin(ang), 0.0f, std::cos(ang))
-				);
-			}
-			for (uint32_t i = 1; i < tree_stack.size(); i++) {
-				float speed = bottom_arm_velocity * bottom_arm_rotateSpeed;
-				bottom_wave_acc[i] += elapsed * speed;
-				bottom_wave_acc[i] -= std::floor(bottom_wave_acc[i]);
-				//printf("bottomwave: %f\n", (bottom_wave_acc[i] * float(M_PI)));
-				float ang = (0.5f * float(M_PI)) * i;
-				tree_stack[i]->transform.rotation = glm::angleAxis(
-					std::sin(bottom_wave_acc[i] * float(M_PI)),
-					glm::vec3(std::sin(ang), std::cos(ang), 0.0f)
-					);
-			}
-			for (uint32_t i = 2; i < tree_stack.size(); i++) {				
-				float speed = mid_arm_velocity * mid_arm_rotateSpeed;
-				mid_wave_acc[i] += elapsed * speed;
-				mid_wave_acc[i] -= std::floor(mid_wave_acc[i]);
-				mid_wave_acc[i] += elapsed * (mid_arm_velocity * mid_arm_rotateSpeed);
-				mid_wave_acc[i] -= std::floor(mid_wave_acc[i]);
-				float ang = (0.5f * float(M_PI)) * i;
-				tree_stack[i]->transform.rotation = glm::angleAxis(
-					std::sin(mid_wave_acc[i] * float(M_PI)),
-					glm::vec3(std::cos(ang), 0.0f, std::sin(ang))
-					);
-			}			
-			for (uint32_t i = 3; i < tree_stack.size(); i++) {
-				float speed = top_arm_velocity * top_arm_rotateSpeed;
-				top_wave_acc[i] += elapsed * speed;
-				top_wave_acc[i] -= std::floor(top_wave_acc[i]);
-				top_wave_acc[i] += elapsed * (top_arm_velocity * top_arm_rotateSpeed);
-				top_wave_acc[i] -= std::floor(top_wave_acc[i]);
-				float ang = (0.5f * float(M_PI)) * i;
-				tree_stack[i]->transform.rotation = glm::angleAxis(
-					std::sin(top_wave_acc[i] * float(M_PI)),
-					glm::vec3(std::sin(ang), std::cos(ang), 0.0f)
-					);
-			}
-			
 
 			//camera:
 			scene.camera.transform.position = camera.radius * glm::vec3(

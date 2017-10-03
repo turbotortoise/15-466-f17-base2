@@ -1,24 +1,22 @@
 NOTE: please fill in the first section with information about your game.
 
-# *Robot Fun Police*
+# *Pool Dozer*
 
-*Robot Fun Police* is *Breeanna Ebert*'s implementation of [*Design Document*](http://graphics.cs.cmu.edu/courses/15-466-f17/game2-designs/jmccann) for game2 in 15-466-f17.
+*Pool Dozer* is *Breeanna Ebert*'s implementation of [*Design Document*](http://graphics.cs.cmu.edu/courses/15-466-f17/game3-designs/jmccann) for game3 in 15-466-f17.
 
-![screenshot](https://github.com/turbotortoise/15-466-f17-base2/blob/master/screenshots/Game2Screenshot.png)
+![screenshot](https://github.com/turbotortoise/15-466-f17-base3/blob/master/screenshots/Game3Screenshot.png)
 
 ## Asset Pipeline
 
-*Meshes are exported through the export-robot-meshes.py script through blender. All meshes in which the user doesn't interact with are added to the scene. Interactable objects are added with references.*
+*Meshes are exported through the export-pool-meshes.py script through blender. All meshes in which the user doesn't interact with are added to the scene. Interactable objects are added with references.*
 
 ## Architecture
 
-*I create stacks of the robot and balloons. If the user presses the appropriate buttons, the robot will move. If the needle collides with a sphere collider enclosing a balloon, that balloon will pop.*
+*I created vectors of cylinders, pool balls, and dozers. This way, the items are accessible as they are loaded into the scene. I case on the button inputs in order to alter each dozer's rotation and speed. Each dozer can collide with each pool ball, the opposing dozer, and the cylinders. The balls can collide with each other and the dozers.*
 
 ## Reflection
 
-*The collision detection for the needle isn't as accurate as it could be. I wanted to create a cylinder enclosing the needle, and trigger the pop when the cylinder collided with the balloon's sphere collider.*
-
-*Do the balloons start in different positions? Do they have different floating speeds?*
+*Collision detection between the dozers and balls are accurate. However, the friction used on the balls makes the balls appear to move in a rigid manner. I attempted to add some 3D physics such as gravity, and it would have been nice to add bounce back from collision impact.*
 
 
 # About Base2

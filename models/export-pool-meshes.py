@@ -12,28 +12,39 @@ import sys
 import bpy
 import struct
 
-bpy.ops.wm.open_mainfile(filepath='robot.blend')
+bpy.ops.wm.open_mainfile(filepath='pool.blend')
 
 #names of objects whose meshes to write (not actually the names of the meshes):
 to_write = [
-	'Balloon1',
-	'Balloon1-Pop',
-	'Balloon2',
-	'Balloon2-Pop',
-	'Balloon3',
-	'Balloon3-Pop',
-	'Crate',
-	'Crate.001',
-	'Crate.002',
-	'Crate.003',
-	'Crate.004',
-	'Crate.005',
-	'Cube.001',
-	#'Stand',
-	'Base',
-	'Link1',
-	'Link2',
-	'Link3',
+	'Ball-1',
+	'Ball-2',
+	'Ball-3',
+	'Ball-4',
+	'Ball-5',
+	'Ball-6',
+	'Ball-7',
+	'Ball-8',
+	'Ball-9',
+	'Ball-10',
+	'Ball-11',
+	'Ball-12',
+	'Ball-13',
+	'Ball-14',
+	'Ball-15',
+
+	#'Circle',
+	'Circle.001',
+	'Circle.002',
+
+	'Cylinder',
+	'Cylinder.001',
+	'Cylinder.002',
+	'Cylinder.003',
+	'Cylinder.004',
+	'Cylinder.005',
+
+	'Table',
+
 ]
 
 #data contains vertex and normal data from the meshes:
@@ -51,7 +62,7 @@ data_colors = b''
 vertex_count = 0
 for name in to_write:
 	print("Writing '" + name + "'...")
-	#bpy.ops.object.mode_set(mode='OBJECT') #get out of edit mode (just in case)
+	bpy.ops.object.mode_set(mode='OBJECT') #get out of edit mode (just in case)
 	assert(name in bpy.data.objects)
 	obj = bpy.data.objects[name]
 
@@ -132,7 +143,7 @@ print("Wrote " + str(blob.tell()) + " bytes to meshes.blob")
 #Export scene (object positions for every object on layer one)
 
 #(re-open file because we adjusted mesh users in the export above)
-bpy.ops.wm.open_mainfile(filepath='robot.blend')
+bpy.ops.wm.open_mainfile(filepath='pool.blend')
 
 #strings chunk will have names
 strings = b''

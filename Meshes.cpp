@@ -27,6 +27,7 @@ void Meshes::load(std::string const &filename, Attributes const &attributes) {
 		GLuint buffer = 0;
 		glGenBuffers(1, &buffer);
 		glBindBuffer(GL_ARRAY_BUFFER, buffer);
+		//how big data is
 		glBufferData(GL_ARRAY_BUFFER, sizeof(v3n3) * data.size(), &data[0], GL_STATIC_DRAW);
 
 		total = data.size(); //store total for later checks on index
